@@ -17,15 +17,21 @@ jobs:
       - name: Get latest tag
         id: get-latest-tag
         run: |
-          # Get the latest tag, if none exists default to 0.0.0
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1` 2>/dev/null || echo "0.0.0")
-          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          # Get the latest tag, if none exists default to v0.0.0
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          # Remove 'v' prefix for version calculations
+          LATEST_VERSION=${LATEST_TAG#v}
+          echo "LATEST_TAG=${LATEST_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Bump version
         id: bump-version
         run: |
           # Parse the latest tag
-          IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST_TAG//[^0-9.]/ }"
+          IFS='.' read -r -a version_parts <<< "${{ steps.get-latest-tag.outputs.LATEST_TAG }}"
+          
+          MAJOR="${version_parts[0]:-0}"
+          MINOR="${version_parts[1]:-0}"
+          PATCH="${version_parts[2]:-0}"
           
           # Increment patch version
           NEW_PATCH=$((PATCH + 1))
@@ -36,6 +42,7 @@ jobs:
       - name: Create and push tag
         run: |
           NEW_VERSION=${{ steps.bump-version.outputs.NEW_VERSION }}
+          echo "Creating tag v${NEW_VERSION}"
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git tag -a "v${NEW_VERSION}" -m "Release version ${NEW_VERSION}"
